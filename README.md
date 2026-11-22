@@ -9,7 +9,7 @@ Translations are maintained in the main [LeanType repository](https://github.com
 ## 📋 System Requirements
 
 - **Operating System**: Android 11 or newer
-- **Host Keyboard**: [LeanType](https://github.com/LeanBitLab/LeanType) (Standard or Offline flavor)
+- **Host Keyboard**: [LeanType](https://github.com/LeanBitLab/LeanType) English-only `-lite-release.apk` builds (Standard or Offline flavor). The regular APKs, including the F-Droid build, already contain all languages and need no pack.
 
 ---
 
@@ -35,9 +35,9 @@ Each language pack is built for a specific LeanType build and is coupled to that
 
 Language pack releases are generated via GitHub Actions:
 
-1. Go to the **Actions** tab and select the "Build language packs" workflow.
-2. Trigger `workflow_dispatch` by entering the LeanType release tag (e.g. `v4.3.7`).
-3. The workflow fetches the release APKs (standard and offline), builds packs for every locale with `tools/build_language_pack.py`, and publishes releases tagged by `<versionName>-<crc32>`.
+1. Every 6 hours the "Build language packs" workflow checks the newest LeanType release with `-lite-release.apk` files and builds its packs if they don't exist yet.
+2. To build for a specific release, run it from the **Actions** tab with the LeanType release tag (e.g. `v4.3.7`).
+3. The workflow fetches the English-only APKs (standard and offline), builds packs for every locale with `tools/build_language_pack.py`, and publishes releases tagged by `<versionName>-<crc32>`.
 
 ### Local Build Command
 

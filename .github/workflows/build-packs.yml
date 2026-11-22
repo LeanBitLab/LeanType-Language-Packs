@@ -1,9 +1,12 @@
 name: Build language packs
 
-# Builds the language packs for one LeanType release. Each release APK (standard, offline) gets
-# its own release here, tagged <versionName>-<crc32 of its resources.arsc>: that is the tag the
+# Builds the language packs for one LeanType release. Each English-only APK (standard and
+# offline, *-lite-release.apk) gets its own release here, tagged <versionName>-<crc32 of its resources.arsc>: that is the tag the
 # app downloads from, so packs always match the exact build they were made for.
+# Runs by itself every few hours for the newest LeanType release, or by hand for any tag.
 on:
+  schedule:
+    - cron: '17 */6 * * *'
   workflow_dispatch:
     inputs:
       app_tag:
@@ -17,20 +20,41 @@ jobs:
       contents: write
     env:
       APP_REPO: LeanBitLab/LeanType
-      APP_TAG: ${{ inputs.app_tag }}
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Pick the LeanType release
+        id: pick
+        run: |
+          tag='${{ inputs.app_tag }}'
+          if [ -z "$tag" ]; then
+            # newest release (betas included) that has English-only APKs
+            tag=$(gh release list -R "$APP_REPO" -L 10 --json tagName --jq '.[].tagName' | while read -r t; do
+              gh release view "$t" -R "$APP_REPO" --json assets --jq '.assets[].name' | grep -q -- '-lite-release\.apk$' && { echo "$t"; break; }
+            done)
+            [ -n "$tag" ] || { echo "no LeanType release with English-only APKs yet"; exit 0; }
+            # packs already built: their release notes name the app tag
+            if gh release list -R "$GITHUB_REPOSITORY" -L 50 --json name --jq '.[].name' | grep -qF "($tag)"; then
+              echo "packs for $tag exist"; exit 0
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Check out LeanType at the release tag
+        if: steps.pick.outputs.tag
         uses: actions/checkout@v4
         with:
           repository: ${{ env.APP_REPO }}
-          ref: ${{ inputs.app_tag }}
+          ref: ${{ steps.pick.outputs.tag }}
           path: app-src
 
-      - name: Download the release APKs
-        run: gh release download "$APP_TAG" -R "$APP_REPO" -p '*-release.apk' -D apks
+      - name: Download the English-only release APKs
+        if: steps.pick.outputs.tag
+        env:
+          APP_TAG: ${{ steps.pick.outputs.tag }}
+        run: gh release download "$APP_TAG" -R "$APP_REPO" -p '*-lite-release.apk' -D apks
 
       - name: Build packs
+        if: steps.pick.outputs.tag
         run: |
           locales=$(cd app-src/app/src/main/res && for d in values-*/; do
             ls "$d" | grep -q '^strings.*\.xml$' && printf '%s ' "${d#values-}"; done | tr -d /)
@@ -43,6 +67,9 @@ jobs:
           done
 
       - name: Publish one release per APK
+        if: steps.pick.outputs.tag
+        env:
+          APP_TAG: ${{ steps.pick.outputs.tag }}
         run: |
           for log in packs/*.log; do
             dir="${log%.log}"
@@ -52,6 +79,6 @@ jobs:
               gh release upload "$tag" "$dir"/*.apk --clobber -R "$GITHUB_REPOSITORY"
             else
               gh release create "$tag" "$dir"/*.apk -R "$GITHUB_REPOSITORY" \
-                --title "$tag" --notes "Language packs for $(basename "$dir") ($APP_TAG)."
+                --title "$tag ($APP_TAG)" --notes "Language packs for $(basename "$dir") ($APP_TAG)."
             fi
           done
