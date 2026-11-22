@@ -1,0 +1,6 @@
+# workflow working dirs
+app-src/
+apks/
+packs/
+*.apk
+__pycache__/
