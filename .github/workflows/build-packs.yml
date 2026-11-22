@@ -30,7 +30,7 @@ jobs:
             # newest release (betas included) that has English-only APKs
             tag=$(gh release list -R "$APP_REPO" -L 10 --json tagName --jq '.[].tagName' | while read -r t; do
               gh release view "$t" -R "$APP_REPO" --json assets --jq '.assets[].name' | grep -q -- '-lite-release\.apk$' && { echo "$t"; break; }
-            done)
+            done || true)
             [ -n "$tag" ] || { echo "no LeanType release with English-only APKs yet"; exit 0; }
             # packs already built: their release notes name the app tag
             if gh release list -R "$GITHUB_REPOSITORY" -L 50 --json name --jq '.[].name' | grep -qF "($tag)"; then
