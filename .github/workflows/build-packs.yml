@@ -1,0 +1,57 @@
+name: Build language packs
+
+# Builds the language packs for one LeanType release. Each release APK (standard, offline) gets
+# its own release here, tagged <versionName>-<crc32 of its resources.arsc>: that is the tag the
+# app downloads from, so packs always match the exact build they were made for.
+on:
+  workflow_dispatch:
+    inputs:
+      app_tag:
+        description: 'LeanType release tag, e.g. v4.3.7 or beta-437-1'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      APP_REPO: LeanBitLab/LeanType
+      APP_TAG: ${{ inputs.app_tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out LeanType at the release tag
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.APP_REPO }}
+          ref: ${{ inputs.app_tag }}
+          path: app-src
+
+      - name: Download the release APKs
+        run: gh release download "$APP_TAG" -R "$APP_REPO" -p '*-release.apk' -D apks
+
+      - name: Build packs
+        run: |
+          locales=$(cd app-src/app/src/main/res && for d in values-*/; do
+            ls "$d" | grep -q '^strings.*\.xml$' && printf '%s ' "${d#values-}"; done | tr -d /)
+          echo "locales: $locales"
+          for apk in apks/*.apk; do
+            out="packs/$(basename "$apk" .apk)"
+            mkdir -p "$out"
+            args=(); for l in $locales; do args+=(--locale "$l"); done
+            python3 app-src/tools/build_language_pack.py --apk "$apk" --out-dir "$out" "${args[@]}" | tee "$out.log"
+          done
+
+      - name: Publish one release per APK
+        run: |
+          for log in packs/*.log; do
+            dir="${log%.log}"
+            tag=$(sed -n 's/^release tag: //p' "$log")
+            if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "$tag exists, replacing its packs"
+              gh release upload "$tag" "$dir"/*.apk --clobber -R "$GITHUB_REPOSITORY"
+            else
+              gh release create "$tag" "$dir"/*.apk -R "$GITHUB_REPOSITORY" \
+                --title "$tag" --notes "Language packs for $(basename "$dir") ($APP_TAG)."
+            fi
+          done
