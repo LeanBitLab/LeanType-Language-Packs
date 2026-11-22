@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
     inputs:
       app_tag:
-        description: 'LeanType release tag, e.g. v4.3.7 or beta-437-1'
-        required: true
+        description: 'LeanType release tag, e.g. v4.3.7 or beta-437-1 (empty: newest release with lite APKs)'
+        required: false
 
 jobs:
   build:
