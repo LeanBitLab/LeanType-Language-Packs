@@ -35,7 +35,7 @@ Each language pack is built for a specific LeanType build and is coupled to that
 
 Language pack releases are generated via GitHub Actions:
 
-1. Every 6 hours the "Build language packs" workflow checks the newest LeanType release with `-lite-release.apk` files and builds its packs if they don't exist yet.
+1. When a LeanType release is published, its workflow starts "Build language packs" with the release tag.
 2. To build for a specific release, run it from the **Actions** tab with the LeanType release tag (e.g. `v4.3.7`).
 3. The workflow fetches the English-only APKs (standard and offline), builds packs for every locale with `tools/build_language_pack.py`, and publishes releases tagged by `<versionName>-<crc32>`.
 
