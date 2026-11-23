@@ -3,10 +3,8 @@ name: Build language packs
 # Builds the language packs for one LeanType release. Each English-only APK (standard and
 # offline, *-lite-release.apk) gets its own release here, tagged <versionName>-<crc32 of its resources.arsc>: that is the tag the
 # app downloads from, so packs always match the exact build they were made for.
-# Runs by itself every few hours for the newest LeanType release, or by hand for any tag.
+# Started by the LeanType release workflow (workflow_dispatch with the tag), or by hand for any tag.
 on:
-  schedule:
-    - cron: '17 */6 * * *'
   workflow_dispatch:
     inputs:
       app_tag:
@@ -74,14 +72,17 @@ jobs:
           for log in packs/*.log; do
             dir="${log%.log}"
             tag=$(sed -n 's/^release tag: //p' "$log")
+            # readable title, e.g. "LeanType 4.3.6 beta 4 language packs (standard)"; the tag stays <versionName>-<crc>, which the app looks up
+            beta=""; [[ "$APP_TAG" =~ ^beta-.*-([0-9]+)$ ]] && beta=" beta ${BASH_REMATCH[1]}"
+            flavor=standard; [[ "$dir" == *offline* ]] && flavor=offline
+            title="LeanType ${tag%-*}$beta language packs ($flavor)"
+            notes="Language packs for $(basename "$dir") ($APP_TAG)."
             if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              # same resources as an earlier build (e.g. beta then stable): keep the tag, refresh files, title and notes
               echo "$tag exists, replacing its packs"
               gh release upload "$tag" "$dir"/*.apk --clobber -R "$GITHUB_REPOSITORY"
+              gh release edit "$tag" -R "$GITHUB_REPOSITORY" --title "$title" --notes "$notes"
             else
-              # readable title, e.g. "LeanType 4.3.6 beta 4 language packs (standard)"; the tag stays <versionName>-<crc>, which the app looks up
-              beta=""; [[ "$APP_TAG" =~ ^beta-.*-([0-9]+)$ ]] && beta=" beta ${BASH_REMATCH[1]}"
-              flavor=standard; [[ "$dir" == *offline* ]] && flavor=offline
-              gh release create "$tag" "$dir"/*.apk -R "$GITHUB_REPOSITORY" \
-                --title "LeanType ${tag%-*}$beta language packs ($flavor)" --notes "Language packs for $(basename "$dir") ($APP_TAG)."
+              gh release create "$tag" "$dir"/*.apk -R "$GITHUB_REPOSITORY" --title "$title" --notes "$notes"
             fi
           done
